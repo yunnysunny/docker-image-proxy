@@ -1,7 +1,7 @@
 package config
 
 import (
-	"encoding/base64"
+	// "encoding/base64"
 	"os"
 	"strconv"
 	"strings"
@@ -24,7 +24,7 @@ type Config struct {
 	// 认证配置
 	UpstreamAuthService string // 认证服务地址
 	// 当前镜像服务地址
-	SelfRegistry string
+	SelfRegistry    string
 	SelfAuthService string // 当前镜像鉴权服务
 	// 账号配置
 	Accounts []string
@@ -40,10 +40,7 @@ func NewConfig() *Config {
 	accountsStr := getEnv("ACCOUNTS", "")
 	if accountsStr != "" {
 		accountStrs := strings.Split(accountsStr, ",")
-		for _, accountStr := range accountStrs {
-			account := base64.StdEncoding.EncodeToString([]byte(accountStr))
-			accounts = append(accounts, account)
-		}
+		accounts = append(accounts, accountStrs...)
 	}
 	return &Config{
 		Port:                port,

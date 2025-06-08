@@ -118,3 +118,11 @@ func (s *TokenService) GetToken(tokenString string) (*Token, error) {
 	}
 	return nil, errors.New("invalid token")
 }
+
+func (s *TokenService) GetUnverifiedToken(tokenString string) (*Token, error) {
+	token, _,err := new (jwt.Parser).ParseUnverified(tokenString, &Token{})
+	if err != nil {
+		return nil, err
+	}
+	return token.Claims.(*Token), nil
+}

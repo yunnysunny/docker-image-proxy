@@ -30,7 +30,7 @@ func NewRegistryHandler(log *logrus.Logger, config *config.Config) *RegistryHand
 
 // HandleCatalog 处理镜像仓库列表请求
 func (h *RegistryHandler) HandleCatalog(c *gin.Context) {
-	repositories, err := h.service.GetCatalog()
+	repositories, err := h.service.GetCatalog(c)
 	if err != nil {
 		h.log.WithError(err).Error("Failed to get catalog")
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -47,7 +47,7 @@ func (h *RegistryHandler) HandleCatalog(c *gin.Context) {
 // HandleTags 处理镜像标签列表请求
 func (h *RegistryHandler) HandleTags(c *gin.Context) {
 	name := c.Param("name")
-	tags, err := h.service.GetTags(name)
+	tags, err := h.service.GetTags(name, c)
 	if err != nil {
 		h.log.WithError(err).WithField("name", name).Error("Failed to get tags")
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -67,7 +67,7 @@ func (h *RegistryHandler) HandleManifest(c *gin.Context) {
 	name := c.Param("name")
 	reference := c.Param("reference")
 
-	manifest, err := h.service.GetManifest(name, reference)
+	manifest, err := h.service.GetManifest(name, reference, c)
 	if err != nil {
 		h.log.WithError(err).WithFields(logrus.Fields{
 			"name":      name,
@@ -89,7 +89,7 @@ func (h *RegistryHandler) HandleBlob(c *gin.Context) {
 	name := c.Param("name")
 	digest := c.Param("digest")
 
-	blob, err := h.service.GetBlob(name, digest)
+	blob, err := h.service.GetBlob(name, digest, c)
 	if err != nil {
 		h.log.WithError(err).WithFields(logrus.Fields{
 			"name":   name,
@@ -118,7 +118,7 @@ func (h *RegistryHandler) HandleAuthChallenge(c *gin.Context) {
 		return
 	}
 	defer resp.Body.Close()
-	if h.config.SkipAuthProxy {// 跳过认证代理
+	if h.config.SkipAuthProxy {// 不做改写
 		io.Copy(c.Writer, resp.Body)
 		return
 	}
@@ -192,9 +192,9 @@ func (h *RegistryHandler) HandleAuth(c *gin.Context) {
 	scope := c.Query("scope")
 	var token string
 	var err error
-	if serviceName == h.config.SelfAuthService {
+	if serviceName == h.config.SelfAuthService {// 源站没有认证服务
 		token, err = h.tokenService.GetDockerRegistryToken(scope)
-	} else {
+	} else {// 源站有认证服务
 		token, err = h.service.Authenticate(authHeader, scope, serviceName)
 	}
 

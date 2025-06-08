@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/yunnysunny/docker-image-proxy/internal/config"
 )
@@ -26,10 +27,27 @@ func NewRegistryService(log *logrus.Logger, config *config.Config) *RegistryServ
 	}
 }
 
+func (s *RegistryService) doGet(url string, c *gin.Context) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	_, exists := c.Get("token")
+
+	for key, values := range c.Request.Header {
+		if key == "Authorization" && exists {
+			continue
+		}
+		req.Header[key] = values
+	}
+	resp, err := s.client.Do(req)
+	return resp, err
+}
+
 // GetCatalog 从上游仓库获取镜像列表
-func (s *RegistryService) GetCatalog() ([]string, error) {
+func (s *RegistryService) GetCatalog(c *gin.Context) ([]string, error) {
 	url := path.Join(s.config.UpstreamRegistry, "v2", "_catalog")
-	resp, err := s.client.Get(url)
+	resp, err := s.doGet(url, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get catalog: %v", err)
 	}
@@ -50,9 +68,9 @@ func (s *RegistryService) GetCatalog() ([]string, error) {
 }
 
 // GetTags 从上游仓库获取镜像标签列表
-func (s *RegistryService) GetTags(name string) ([]string, error) {
+func (s *RegistryService) GetTags(name string, c *gin.Context) ([]string, error) {
 	url := path.Join(s.config.UpstreamRegistry, "v2", name, "tags", "list")
-	resp, err := s.client.Get(url)
+	resp, err := s.doGet(url, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tags: %v", err)
 	}
@@ -74,17 +92,17 @@ func (s *RegistryService) GetTags(name string) ([]string, error) {
 }
 
 // GetManifest 从上游仓库获取镜像manifest
-func (s *RegistryService) GetManifest(name, reference string) ([]byte, error) {
+func (s *RegistryService) GetManifest(name, reference string, c *gin.Context) ([]byte, error) {
 	url := path.Join(s.config.UpstreamRegistry, "v2", name, "manifests", reference)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
+	// req, err := http.NewRequest("GET", url, nil)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create request: %v", err)
+	// }
 
-	// 设置必要的请求头
-	req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	// // 设置必要的请求头
+	// req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
 
-	resp, err := s.client.Do(req)
+	resp, err := s.doGet(url, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get manifest: %v", err)
 	}
@@ -98,9 +116,9 @@ func (s *RegistryService) GetManifest(name, reference string) ([]byte, error) {
 }
 
 // GetBlob 从上游仓库获取镜像层
-func (s *RegistryService) GetBlob(name, digest string) (io.ReadCloser, error) {
+func (s *RegistryService) GetBlob(name, digest string, c *gin.Context) (io.ReadCloser, error) {
 	url := path.Join(s.config.UpstreamRegistry, "v2", name, "blobs", digest)
-	resp, err := s.client.Get(url)
+	resp, err := s.doGet(url, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob: %v", err)
 	}
@@ -210,14 +228,14 @@ func (s *RegistryService) ModifyAuthChallenge(
 	// WWW-Authenticate: Bearer realm="xxx",service="xxx",scope="xxx"
 	// 认证头格式举例：
 	// WWW-Authenticate: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/ubuntu:pull"
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 {
+	wwwAuthParts := strings.SplitN(authHeader, " ", 2)
+	if len(wwwAuthParts) != 2 {
 		return originalResp, nil
 	}
 
 	// 解析参数
 	params := make(map[string]string)
-	for _, param := range strings.Split(parts[1], ",") {
+	for _, param := range strings.Split(wwwAuthParts[1], ",") {
 		kv := strings.SplitN(strings.TrimSpace(param), "=", 2)
 		if len(kv) == 2 {
 			key := strings.TrimSpace(kv[0])
@@ -234,7 +252,7 @@ func (s *RegistryService) ModifyAuthChallenge(
 	for k, v := range params {
 		newParams = append(newParams, fmt.Sprintf("%s=\"%s\"", k, v))
 	}
-	newAuthHeader := fmt.Sprintf("%s %s", parts[0], strings.Join(newParams, ","))
+	newAuthHeader := fmt.Sprintf("%s %s", wwwAuthParts[0], strings.Join(newParams, ","))
 
 	// 创建新的响应
 	newResp := &http.Response{
