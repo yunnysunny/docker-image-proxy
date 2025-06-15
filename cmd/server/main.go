@@ -47,6 +47,7 @@ func main() {
 		// 认证相关路由（不需要认证）
 		v2.GET("/", registryHandler.HandleAuthChallenge)
 		v2.GET("/auth", registryHandler.HandleAuth)
+		v2.POST("/users/login", registryHandler.HandleLogin)
 
 		// 需要认证的路由
 		authorized := v2.Group("")

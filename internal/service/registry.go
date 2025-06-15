@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,6 +45,37 @@ func (s *RegistryService) doGet(url string, c *gin.Context) (*http.Response, err
 	return resp, err
 }
 
+func (s *RegistryService) LoginUpstream(username, password string) (string, error) {
+	url := path.Join(s.config.UpstreamRegistry, "v2", "users", "login")
+	jsonBody, err := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal json: %v", err)
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to login: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	return string(bodyBytes), nil
+}
 // GetCatalog 从上游仓库获取镜像列表
 func (s *RegistryService) GetCatalog(c *gin.Context) ([]string, error) {
 	url := path.Join(s.config.UpstreamRegistry, "v2", "_catalog")

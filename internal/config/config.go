@@ -19,8 +19,7 @@ type Config struct {
 	Port int
 	// 上游Docker Registry配置
 	UpstreamRegistry string
-	// 缓存配置
-	CacheDir string
+	UpstreamNoAuth   bool
 	// 认证配置
 	UpstreamAuthService string // 认证服务地址
 	// 当前镜像服务地址
@@ -45,7 +44,7 @@ func NewConfig() *Config {
 	return &Config{
 		Port:                port,
 		UpstreamRegistry:    getEnv("UPSTREAM_REGISTRY", "https://registry-1.docker.io"),
-		CacheDir:            getEnv("CACHE_DIR", "./cache"),
+		UpstreamNoAuth:      getEnv("UPSTREAM_NO_AUTH", "false") == "true",
 		UpstreamAuthService: getEnv("AUTH_SERVICE", "https://auth.docker.io"),
 		SelfRegistry:        getEnv("SELF_REGISTRY", "http://localhost:8080"),
 		SelfAuthService:     "docker-image-proxy",

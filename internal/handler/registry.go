@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/url"
@@ -105,6 +106,44 @@ func (h *RegistryHandler) HandleBlob(c *gin.Context) {
 	// 流式传输blob数据
 	io.Copy(c.Writer, blob)
 }
+
+func (h *RegistryHandler) HandleLogin(c *gin.Context) {
+	username := c.PostForm("username")
+	password := c.PostForm("password")
+	base64Auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	if len(h.config.Accounts) > 0 {// 如果配置了账号，则需要验证账号是否在配置中
+		accountAllowed := false
+		for _, acc := range h.config.Accounts {
+			if acc == base64Auth {
+				accountAllowed = true
+				break
+			}
+		}
+		if !accountAllowed {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Unauthorized account",
+			})
+			return
+		}
+	}
+	if h.config.UpstreamNoAuth {
+		c.JSON(http.StatusOK, gin.H{
+			"token": "test",
+		})
+		return
+	}
+	token, err := h.service.LoginUpstream(username, password)
+	if err != nil {
+		h.log.WithError(err).Error("Failed to get docker registry token")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get docker registry token",
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+	})
+}
+
 
 // HandleAuthChallenge 处理认证挑战请求
 func (h *RegistryHandler) HandleAuthChallenge(c *gin.Context) {
